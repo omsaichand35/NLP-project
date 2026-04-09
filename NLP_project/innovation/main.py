@@ -60,7 +60,7 @@ def get_base_rules(language="english") -> RuleEngine:
 
 def run_pipeline():
     # 3. Load Sample Data and Train
-    data_file = Path(__file__).resolve().parent.parent / "project" / "data" / "raw" / "te_mtg-ud-train.conllu"
+    data_file = Path(__file__).resolve().parent.parent / "project" / "data" / "raw" / "en_ewt-ud-train.conllu"
     
     trainer = Trainer(data_path=str(data_file))
     try:
@@ -101,7 +101,7 @@ def run_pipeline():
 
     # --- Telugu Setup ---
     # Load Telugu specific dataset
-    telugu_file = Path(__file__).resolve().parent.parent / "project" / "data" / "raw" / "te_mtg-ud-train.conllu"
+    telugu_file = Path(__file__).resolve().parent.parent / "project" / "data" / "te_mtg-ud-train.conllu"
     trainer_tel = Trainer(data_path=str(telugu_file))
     try:
         trainer_tel.load_conllu()

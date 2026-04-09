@@ -12,7 +12,8 @@ FUNCTION_WORDS = {
 FUNCTION_WORDS.update({
     "this", "that", "these", "those",
     "my", "your", "his", "her", "its", "our", "their",
-    "not", "very", "so", "too"
+    "not", "very", "so", "too",
+    "already", "still", "today", "yesterday", "now", "then", "fast"
 })
 
 # -------------------
@@ -26,7 +27,13 @@ EXCEPTIONS = {
     "has": {"Tense": "Pres"},
     "had": {"Tense": "Past"},
     "does": {"Tense": "Pres"},
-    "studies": {"Tense": "Pres"}  # 3rd person singular verb
+    "studies": {"Tense": "Pres"},
+    "read": {"Tense": "Past"},
+    "criteria": {"Number": "Plur"},
+    "data": {"Number": "Plur"},
+    "children": {"Number": "Plur"},
+    "being": {"Aspect": "Prog", "Tense": "Pres"},
+    "been": {"Aspect": "Perf", "Tense": "Past"}
 }
 
 
@@ -205,12 +212,16 @@ def analyze_morph(token):
             features["Number"] = "Sing"
 
     # -------------------
-    # GENDER
+    # GENDER & PRONOUNS
     # -------------------
     if word in ["he", "him"]:
         features["Gender"] = "Masc"
+        features["PronType"] = "Prs"
     elif word in ["she", "her"]:
         features["Gender"] = "Fem"
+        features["PronType"] = "Prs"
+    elif word in ["i", "me", "my", "you", "they", "them", "we", "us"]:
+        features["PronType"] = "Prs"
 
     # -------------------
     # Learned suffix fallback (never override handcrafted signals)

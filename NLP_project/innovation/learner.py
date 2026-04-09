@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import List, Dict, Optional, Tuple
 from core import Rule, TokenContext, extract_context
 
@@ -5,9 +6,12 @@ class AdaptiveLearner:
     def __init__(self, engine):
         self.engine = engine
         self.learning_rate = 0.05
-        self.max_failures_threshold = 5  # Allow max 5 failures before pruning if conf is low
-        self.confidence_threshold = 0.4  # Remove rules below 0.4
+        self.max_failures_threshold = 5 
+        self.confidence_threshold = 0.4
+        self.exception_failure_threshold = 3  # NEW: Only memorize after 3 failures
         self.specialized_rule_count = 0
+        
+        self._failure_counters = defaultdict(int) # Token failure tracking
         
     def evaluate_and_update(self, tokens: List[str], gold_tags: List[Tuple[str, str]], predicted_tags: List[Tuple[str, str]], explain_logs: List[Dict]):
         """
@@ -19,9 +23,11 @@ class AdaptiveLearner:
         for i, (word, gold, pred, log) in enumerate(zip(tokens, gold_tags, predicted_tags, explain_logs)):
             rule_name = log.get("rule_name")
             
-            # Always learn vocabulary exceptions for incorrect predictions, even if it's from default fallback
+            # Gated Memorization: Only learn vocabulary exceptions if the word fails repeatedly
             if gold != pred:
-                self._add_to_exceptions(word.lower(), gold[0], gold[1])
+                self._failure_counters[word.lower()] += 1
+                if self._failure_counters[word.lower()] >= self.exception_failure_threshold:
+                    self._add_to_exceptions(word.lower(), gold[0], gold[1])
 
             if not rule_name:
                 continue

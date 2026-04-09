@@ -9,6 +9,7 @@ class TokenContext:
     prev_pos: Optional[str] = None
     next_pos: Optional[str] = None
     dependency: Optional[str] = None
+    is_capitalized: bool = False # NEW: Track case information
 
 class Rule:
     def __init__(
@@ -68,5 +69,6 @@ def extract_context(tokens: List[str], index: int, pos_tags: List[str] = None) -
         prev_word=prev_word,
         next_word=next_word,
         prev_pos=prev_pos,
-        next_pos=next_pos
+        next_pos=next_pos,
+        is_capitalized=word[0].isupper() if word else False
     )
