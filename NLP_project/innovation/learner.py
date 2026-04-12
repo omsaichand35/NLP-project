@@ -10,12 +10,13 @@ class AdaptiveLearner:
         self.confidence_threshold = 0.4
         self.exception_failure_threshold = 3  # NEW: Only memorize after 3 failures
         self.specialized_rule_count = 0
+        self.generated_rules: List[Rule] = []
         
         self._failure_counters = defaultdict(int) # Token failure tracking
         
     def evaluate_and_update(self, tokens: List[str], gold_tags: List[Tuple[str, str]], predicted_tags: List[Tuple[str, str]], explain_logs: List[Dict]):
         """
-        Evaluate predictions, update rule confidences, prune weak rules, 
+        Evaluate predictions, update rule confidences,
         and specialize failing rules. (gold/pred are tuples of (lemma, feats))
         """
         errors_by_rule = {}
@@ -63,19 +64,25 @@ class AdaptiveLearner:
              if len(error_list) >= 3 and rule: # if failing repeatedly in this epoch
                   self._specialize_rule(rule, error_list)
 
-        # Prune weak rules
-        self._prune_rules()
-
     def _add_to_exceptions(self, word: str, lemma: str, feat: str):
         # Simplistic heuristic: if the word is consistently failing across the epochs, add exception.
         self.engine.set_exception(word, lemma, feat)
+
+    def get_top_generated_rules(self, k: int = 10) -> List[Rule]:
+        """
+        Return top runtime-generated specialized rules created during training.
+        """
+        ranked_rules = sorted(
+            self.generated_rules,
+            key=lambda r: (r.confidence, r.hit_rate(), r.total_applications()),
+            reverse=True,
+        )
+        return ranked_rules[:k]
 
     def _specialize_rule(self, base_rule: Rule, error_list: List[Dict]):
         """
         Create a more specific rule based on the context of false positive errors.
         """
-        import uuid
-        
         # Look for common context among errors. For example, common previous word.
         prev_words = [err["context"].prev_word for err in error_list if err["context"].prev_word]
         if not prev_words: return
@@ -87,22 +94,39 @@ class AdaptiveLearner:
         if count >= 2:
             subset_errs = [err for err in error_list if err["context"].prev_word == most_common_prev]
             gold_feat = subset_errs[0]["gold_feat"]
+            gold_lemma = subset_errs[0]["gold_lemma"]
+            normalized_prev = most_common_prev.lower()
+            rule_signature = (base_rule.name, normalized_prev, gold_feat, gold_lemma)
+
+            # Avoid creating duplicate specialized rules for the same condition/action.
+            for existing_rule in self.generated_rules:
+                if getattr(existing_rule, "rule_signature", None) == rule_signature:
+                    return
+
             # Specialized lemma action isn't handled as easily automatically; default to word
             
             def condition(ctx: TokenContext, prev=most_common_prev, base_cond=base_rule.condition):
                 return base_cond(ctx) and (ctx.prev_word is not None and ctx.prev_word.lower() == prev.lower())
+
+            rule_description = (
+                f"IF base_rule={base_rule.name} AND prev_word.lower()=={repr(normalized_prev)} "
+                f"THEN lemma={repr(gold_lemma)}, feat={repr(gold_feat)}"
+            )
                 
             new_rule = Rule(
-                name=f"{base_rule.name}_specialized_prev_{most_common_prev}_{str(uuid.uuid4())[:4]}",
+                name=f"{base_rule.name}_specialized_prev_{normalized_prev}",
                 condition=condition,
                 feat_output=gold_feat,
-                lemma_action=lambda w: subset_errs[0]["gold_lemma"], # hardcoded lemma override as fallback
+                lemma_action=lambda w: gold_lemma, # hardcoded lemma override as fallback
                 confidence=0.8,
                 priority=base_rule.priority + 1 # Higher priority than base rule
             )
+            new_rule.rule_signature = rule_signature
+            new_rule.rule_description = rule_description
             self.engine.add_rule(new_rule)
             self.specialized_rule_count += 1
-            print(f"SPECIALIZED: Created rule {new_rule.name}")
+            self.generated_rules.append(new_rule)
+            print(f"SPECIALIZED: Created rule {rule_description}")
 
     def _prune_rules(self):
         """

@@ -8,6 +8,21 @@ class Trainer:
     def __init__(self, data_path: str):
         self.data_path = data_path
         self.sentences: List[List[Tuple[str, str]]] = []
+
+    def _print_top_generated_rules(self, learner: AdaptiveLearner, top_k: int = 10):
+        top_rules = learner.get_top_generated_rules(top_k)
+        print(f"\nTop {top_k} runtime-specialized rules (created during training):")
+        if not top_rules:
+            print("No specialized rules were created during training.")
+            return
+
+        for idx, rule in enumerate(top_rules, start=1):
+            rule_description = getattr(rule, "rule_description", rule.name)
+            print(
+                f"{idx:2d}. {rule_description} | "
+                f"conf={rule.confidence:.2f} | hits={rule.successes}/{rule.total_applications()} | "
+                f"priority={rule.priority}"
+            )
         
     def load_conllu(self):
         """
@@ -94,7 +109,8 @@ class Trainer:
                 macro_f1 = sum(f1_scores.values()) / len(classes)
                 
             print(f"Epoch {epoch + 1} - Lemma Acc: {lemma_acc:.2f}% | Feat Acc: {feat_acc:.2f}% | Feat F1: {macro_f1:.2f}")
-            learner._prune_rules() # Extra prune pass after epoch
+
+        self._print_top_generated_rules(learner, top_k=10)
             
     def evaluate(self, engine: RuleEngine, sentences: List[List[Tuple[str, Tuple[str, str]]]], prefix: str = ""):
         lemma_correct = 0
